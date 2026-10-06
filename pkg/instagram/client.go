@@ -10,13 +10,13 @@ import (
 	"go-insta-cli/pkg/posts"
 )
 
-// Client handles network communications with Instagram's web APIs.
+// Client handles network communications with Instagram APIs.
 type Client struct {
 	SessionID  string
 	HTTPClient *http.Client
 }
 
-// NewClient creates a new Instagram HTTP client using the provided session ID.
+// NewClient creates a new Instagram HTTP client using the provided session ID or Graph Access Token.
 func NewClient(sessionID string) *Client {
 	return &Client{
 		SessionID: sessionID,
@@ -24,6 +24,28 @@ func NewClient(sessionID string) *Client {
 			Timeout: 15 * time.Second,
 		},
 	}
+}
+
+// GraphAPIMediaData represents the JSON object returned by Meta Graph API /me/media.
+type GraphAPIMediaData struct {
+	ID            string `json:"id"`
+	Caption       string `json:"caption"`
+	MediaType     string `json:"media_type"`
+	MediaURL      string `json:"media_url"`
+	Permalink     string `json:"permalink"`
+	Timestamp     string `json:"timestamp"`
+	LikeCount     int    `json:"like_count"`
+	CommentsCount int    `json:"comments_count"`
+}
+
+// GraphAPIMediaResponse represents the response wrapper for Graph API media requests.
+type GraphAPIMediaResponse struct {
+	Data  []GraphAPIMediaData `json:"data"`
+	Error *struct {
+		Message string `json:"message"`
+		Type    string `json:"type"`
+		Code    int    `json:"code"`
+	} `json:"error"`
 }
 
 // InstagramWebProfileResponse maps the JSON structure returned by web_profile_info API.
@@ -75,8 +97,57 @@ func extractUserID(sessionID string) string {
 	return ""
 }
 
-// FetchUserPosts retrieves real Instagram posts for the specified username using live Web API.
+// FetchGraphAPIPosts fetches live posts using official Instagram Meta Graph API (graph.instagram.com/v19.0/me/media).
+func (c *Client) FetchGraphAPIPosts(token string, limit int) ([]posts.Post, error) {
+	if token == "" {
+		return nil, fmt.Errorf("graph API access token is empty")
+	}
+
+	url := fmt.Sprintf("https://graph.instagram.com/v19.0/me/media?fields=id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count&access_token=%s", token)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return nil, fmt.Errorf("failed to reach Graph API: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var graphResp GraphAPIMediaResponse
+	if err := json.NewDecoder(resp.Body).Decode(&graphResp); err != nil {
+		return nil, fmt.Errorf("failed to parse Graph API response: %w", err)
+	}
+
+	if graphResp.Error != nil {
+		return nil, fmt.Errorf("graph API error (%d): %s", graphResp.Error.Code, graphResp.Error.Message)
+	}
+
+	var result []posts.Post
+	for i, item := range graphResp.Data {
+		if limit > 0 && i >= limit {
+			break
+		}
+		result = append(result, posts.Post{
+			ID:           item.ID,
+			Caption:      item.Caption,
+			Timestamp:    item.Timestamp,
+			LikeCount:    item.LikeCount,
+			CommentCount: item.CommentsCount,
+			MediaType:    item.MediaType,
+			MediaURL:     item.MediaURL,
+		})
+	}
+
+	return result, nil
+}
+
+// FetchUserPosts retrieves real Instagram posts attempting official Graph API first, with Web API fallback.
 func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error) {
+	// Attempt official Graph API fetch if SessionID looks like a Graph Access Token or user token
+	if strings.HasPrefix(c.SessionID, "IG") || strings.HasPrefix(c.SessionID, "EAA") || !strings.Contains(c.SessionID, "%3A") {
+		postsList, err := c.FetchGraphAPIPosts(c.SessionID, limit)
+		if err == nil && len(postsList) > 0 {
+			return postsList, nil
+		}
+	}
+
 	if username == "" {
 		return nil, fmt.Errorf("username cannot be empty")
 	}
@@ -111,7 +182,7 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("instagram authentication failed (HTTP %d). Please verify your sessionid cookie", resp.StatusCode)
+		return nil, fmt.Errorf("instagram authentication failed (HTTP %d). Please verify your sessionid or Graph token", resp.StatusCode)
 	}
 
 	if resp.StatusCode != http.StatusOK {
