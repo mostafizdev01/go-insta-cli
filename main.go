@@ -10,6 +10,7 @@ import (
 	"go-insta-cli/pkg/auth"
 	"go-insta-cli/pkg/cli"
 	"go-insta-cli/pkg/config"
+	"go-insta-cli/pkg/instagram"
 	"go-insta-cli/pkg/posts"
 )
 
@@ -79,7 +80,7 @@ func handleStatus() {
 	}
 }
 
-func handlePosts(args []string) {
+func handlePosts(args []string, cfg config.Config) {
 	limit := 10
 	isJSON := false
 
@@ -102,10 +103,12 @@ func handlePosts(args []string) {
 		}
 	}
 
-	postList, err := posts.FetchPosts(limit)
+	client := instagram.NewClient(cfg.SessionToken)
+	postList, err := client.FetchUserPosts(cfg.Username, limit)
 	if err != nil {
-		fmt.Printf("%sError fetching posts: %v%s\n", cli.ColorRed, err, cli.ColorReset)
-		os.Exit(1)
+		fmt.Printf("%s[Instagram API Notice] %v%s\n", cli.ColorYellow, err, cli.ColorReset)
+		fmt.Printf("%sFalling back to test data provider...%s\n\n", cli.ColorCyan, cli.ColorReset)
+		postList = posts.MockPosts(limit)
 	}
 
 	if isJSON {
@@ -164,7 +167,7 @@ func main() {
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)
 		}
-		handlePosts(args)
+		handlePosts(args, cfg)
 	case "delete":
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)

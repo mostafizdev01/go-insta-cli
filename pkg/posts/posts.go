@@ -18,13 +18,8 @@ type Post struct {
 	MediaURL     string `json:"media_url"`
 }
 
-// FetchPosts retrieves recent Instagram posts up to the specified limit.
-// Falls back to mock data provider for offline testing without rate limits.
-func FetchPosts(limit int) ([]Post, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-
+// MockPosts returns fallback mock data for testing.
+func MockPosts(limit int) []Post {
 	mockPosts := []Post{
 		{
 			ID:           "32849102839",
@@ -55,11 +50,10 @@ func FetchPosts(limit int) ([]Post, error) {
 		},
 	}
 
-	if limit < len(mockPosts) {
-		return mockPosts[:limit], nil
+	if limit > 0 && limit < len(mockPosts) {
+		return mockPosts[:limit]
 	}
-
-	return mockPosts, nil
+	return mockPosts
 }
 
 // RenderPostTable displays formatted ANSI colorized list of posts in the terminal.
