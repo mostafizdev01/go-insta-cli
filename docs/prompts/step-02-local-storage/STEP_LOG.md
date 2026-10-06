@@ -1,11 +1,11 @@
 # Step 2: 8-Phase Architectural Plan & Audit Log
 
 - **Target Step**: Step 2 - Secure Configuration & Local Storage
-- **Status**: `PLANNING_APPROVED` (Ready for Code Implementation)
+- **Status**: PLANNING_APPROVED (Ready for Code Implementation)
 
 ---
 
-## 🔍 Phase 2 — Audit of Step 1 Codebase (`main.go`)
+## Phase 2 — Audit of Step 1 Codebase (`main.go`)
 - **Reusable Elements**:
   - ANSI Color constants (`ColorReset`, `ColorGreen`, `ColorYellow`, `ColorRed`, `ColorCyan`).
   - Flag parsing (`--version`, `--help`).
@@ -14,7 +14,7 @@
 
 ---
 
-## 🔍 Phase 3 — Gap Analysis
+## Phase 3 — Gap Analysis
 - [x] **Step 1 Core CLI Skeleton**: 100% Completed.
 - [ ] **Config Struct & Storage Engine**: 0% (Target for Step 2).
 - [ ] **Token Obfuscation & File Permissions (0600)**: 0% (Target for Step 2).
@@ -23,7 +23,7 @@
 
 ---
 
-## 🛠️ Phase 4 & 8 — Step 2 Implementation Plan
+## Phase 4 & 8 — Step 2 Implementation Plan
 
 ### Task 2.1: Define Config Data Structures & Helpers
 - Define `Config` struct (`Username`, `SessionToken`, `IsLoggedIn`, `LastLogin`).
