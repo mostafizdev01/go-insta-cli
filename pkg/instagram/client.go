@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	"go-insta-cli/pkg/posts"
@@ -63,6 +64,17 @@ type InstagramWebProfileResponse struct {
 	Status string `json:"status"`
 }
 
+// extractUserID parses the ds_user_id from the sessionid string prefix.
+func extractUserID(sessionID string) string {
+	if idx := strings.Index(sessionID, "%3A"); idx > 0 {
+		return sessionID[:idx]
+	}
+	if idx := strings.Index(sessionID, ":"); idx > 0 {
+		return sessionID[:idx]
+	}
+	return ""
+}
+
 // FetchUserPosts retrieves real Instagram posts for the specified username using live Web API.
 func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error) {
 	if username == "" {
@@ -75,14 +87,21 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	// Set required Instagram Web headers
+	userID := extractUserID(c.SessionID)
+
+	// Set required Instagram Web browser headers
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
 	req.Header.Set("X-IG-App-ID", "936619743392459")
+	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	req.Header.Set("Accept", "*/*")
 	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
 
 	if c.SessionID != "" {
-		req.Header.Set("Cookie", fmt.Sprintf("sessionid=%s;", c.SessionID))
+		cookieHeader := fmt.Sprintf("sessionid=%s;", c.SessionID)
+		if userID != "" {
+			cookieHeader += fmt.Sprintf(" ds_user_id=%s;", userID)
+		}
+		req.Header.Set("Cookie", cookieHeader)
 	}
 
 	resp, err := c.HTTPClient.Do(req)
