@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"os"
 	"strings"
-	"time"
 
+	"go-insta-cli/pkg/auth"
 	"go-insta-cli/pkg/cli"
 	"go-insta-cli/pkg/config"
 )
@@ -22,33 +22,41 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -v, --version    Show current version\n")
 	fmt.Fprintf(os.Stderr, "  -h, --help       Show help usage guide\n\n")
 	fmt.Fprintf(os.Stderr, "Subcommands:\n")
-	fmt.Fprintf(os.Stderr, "  login <user>     Initiate Instagram login and save session\n")
+	fmt.Fprintf(os.Stderr, "  login            Initiate Instagram interactive login and save session\n")
+	fmt.Fprintf(os.Stderr, "  logout           Clear active session and log out\n")
 	fmt.Fprintf(os.Stderr, "  status           Display current login and session status\n")
-	fmt.Fprintf(os.Stderr, "  posts            Fetch recent Instagram posts\n")
-	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post\n")
-	fmt.Fprintf(os.Stderr, "  show ui          Start local Web UI server\n")
+	fmt.Fprintf(os.Stderr, "  posts            Fetch recent Instagram posts (requires login)\n")
+	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (requires login)\n")
+	fmt.Fprintf(os.Stderr, "  show ui          Start local Web UI server (requires login)\n")
 }
 
 func handleLogin(args []string) {
-	username := "mostafizdev01"
-	if len(args) > 1 && args[1] != "" {
+	username := ""
+	sessionToken := ""
+
+	if len(args) > 1 {
 		username = args[1]
 	}
-
-	cfg := config.Config{
-		Username:     username,
-		SessionToken: "mock_session_token_" + username,
-		IsLoggedIn:   true,
-		LastLogin:    time.Now().Format(time.RFC3339),
-	}
-
-	if err := config.SaveConfig(cfg); err != nil {
-		fmt.Printf("%sError saving session: %v%s\n", cli.ColorRed, err, cli.ColorReset)
-		os.Exit(1)
+	if len(args) > 2 {
+		sessionToken = args[2]
 	}
 
 	fmt.Printf("%sInitiating Instagram login process...%s\n", cli.ColorYellow, cli.ColorReset)
-	fmt.Printf("%sSuccessfully logged in and saved session for '%s'.%s\n", cli.ColorGreen, username, cli.ColorReset)
+	cfg, err := auth.PerformLogin(username, sessionToken)
+	if err != nil {
+		fmt.Printf("%sError during login: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%sSuccessfully authenticated and saved session for '%s'.%s\n", cli.ColorGreen, cfg.Username, cli.ColorReset)
+}
+
+func handleLogout() {
+	if err := auth.PerformLogout(); err != nil {
+		fmt.Printf("%sError during logout: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+	fmt.Printf("%sLogged out successfully. Session cleared.%s\n", cli.ColorYellow, cli.ColorReset)
 }
 
 func handleStatus() {
@@ -65,7 +73,7 @@ func handleStatus() {
 		fmt.Printf("  Last Login: %s\n", cfg.LastLogin)
 	} else {
 		fmt.Printf("  Status:     %sLogged Out%s\n", cli.ColorYellow, cli.ColorReset)
-		fmt.Printf("  Message:    Run 'insta login <username>' to authenticate.\n")
+		fmt.Printf("  Message:    Run 'insta login' to authenticate.\n")
 	}
 }
 
@@ -96,21 +104,33 @@ func main() {
 	}
 
 	command := strings.ToLower(args[0])
-
 	if command == "show" && len(args) > 1 && strings.ToLower(args[1]) == "ui" {
 		command = "show ui"
 	}
 
+	cfg, _ := config.LoadConfig()
+
 	switch command {
 	case "login":
 		handleLogin(args)
+	case "logout":
+		handleLogout()
 	case "status":
 		handleStatus()
 	case "posts":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
 		fmt.Printf("%sFetching Instagram posts...%s\n", cli.ColorCyan, cli.ColorReset)
 	case "delete":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
 		fmt.Printf("%sUsage: delete <post_id>%s\n", cli.ColorYellow, cli.ColorReset)
 	case "show ui":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
 		fmt.Printf("%sStarting local web UI server...%s\n", cli.ColorGreen, cli.ColorReset)
 	default:
 		fmt.Fprintf(os.Stderr, "%sError: Unknown command '%s'%s\n\n", cli.ColorRed, strings.Join(args, " "), cli.ColorReset)

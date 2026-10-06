@@ -48,11 +48,12 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 ---
 
 ## Core Features
-- `login <username>`: Authenticate and securely store session credentials in `~/.config/insta-cli/config.json`.
+- `login`: Interactive login to authenticate and securely store session credentials.
+- `logout`: Clear active session credentials and log out securely.
 - `status`: View current active login state, username, and session timestamp.
-- `posts`: View recent Instagram posts with likes, comments, and captions in terminal.
-- `delete <post_id>`: Remove specific posts safely with interactive `[y/N]` confirmation.
-- `show ui`: Launch an embedded local web dashboard (`http://localhost:8080`) on demand.
+- `posts`: View recent Instagram posts with likes, comments, and captions in terminal (requires authentication).
+- `delete <post_id>`: Remove specific posts safely with interactive `[y/N]` confirmation (requires authentication).
+- `show ui`: Launch an embedded local web dashboard (`http://localhost:8080`) on demand (requires authentication).
 - **Colorized Output**: High-visibility ANSI terminal formatting (Green for success, Yellow for warnings, Red for errors).
 - **Zero Heavy Dependencies**: Built using Go standard libraries for high execution speed and minimal memory footprint.
 
@@ -70,7 +71,7 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 
 | Area | Good UX (Implemented) | Bad UX (Avoided) |
 | :--- | :--- | :--- |
-| **Authentication** | Encrypted local session storage | Prompting password on every single command |
+| **Authentication** | Encrypted local session storage & auth guard | Prompting password on every single command |
 | **Post Deletion** | Interactive confirmation prompt `[y/N]` & `--force` flag | Instant unconfirmed deletion |
 | **Local Web UI** | Auto-opening default browser upon `show ui` | Forcing user to manually type URL |
 | **API Safety** | Built-in request delay & throttling | Rapid request spamming triggering account bans |
@@ -95,7 +96,7 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 
 - [x] **Step 1: Basic CLI & Subcommand Skeleton** *(Completed)*
 - [x] **Step 2: Secure Local Configuration & Storage** *(Completed)*
-- [ ] **Step 3: Instagram Authentication Module**
+- [x] **Step 3: Instagram Authentication Module** *(Completed)*
 - [ ] **Step 4: Post Retrieval Engine**
 - [ ] **Step 5: Post Deletion Engine & Safety Mechanism**
 - [ ] **Step 6: Embedded Local Web Server Core**
@@ -127,12 +128,12 @@ insta --help
 insta status
 
 # 5. Authenticate & Save Session
-insta login mostafizdev01
+insta login
 
 # 6. Test Subcommands
 insta posts
 insta delete
-insta show ui
+insta logout
 ```
 
 ---
