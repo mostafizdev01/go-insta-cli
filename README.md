@@ -51,7 +51,7 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 - `login`: Interactive login to authenticate and securely store session credentials.
 - `logout`: Clear active session credentials and log out securely.
 - `status`: View current active login state, username, and session timestamp.
-- `posts`: View recent Instagram posts with likes, comments, and captions in terminal (requires authentication).
+- `posts [options]`: View recent Instagram posts with likes, comments, captions, `--limit <n>`, and `--json` flags (requires authentication).
 - `delete <post_id>`: Remove specific posts safely with interactive `[y/N]` confirmation (requires authentication).
 - `show ui`: Launch an embedded local web dashboard (`http://localhost:8080`) on demand (requires authentication).
 - **Colorized Output**: High-visibility ANSI terminal formatting (Green for success, Yellow for warnings, Red for errors).
@@ -97,7 +97,7 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 - [x] **Step 1: Basic CLI & Subcommand Skeleton** *(Completed)*
 - [x] **Step 2: Secure Local Configuration & Storage** *(Completed)*
 - [x] **Step 3: Instagram Authentication Module** *(Completed)*
-- [ ] **Step 4: Post Retrieval Engine**
+- [x] **Step 4: Post Retrieval Engine** *(Completed)*
 - [ ] **Step 5: Post Deletion Engine & Safety Mechanism**
 - [ ] **Step 6: Embedded Local Web Server Core**
 - [ ] **Step 7: Interactive Web Dashboard UI**
@@ -130,9 +130,12 @@ insta status
 # 5. Authenticate & Save Session
 insta login
 
-# 6. Test Subcommands
+# 6. Fetch Posts (with limit and json flags)
 insta posts
-insta delete
+insta posts --limit 2
+insta posts --json
+
+# 7. Test Logout
 insta logout
 ```
 

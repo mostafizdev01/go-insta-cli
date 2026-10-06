@@ -4,11 +4,13 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 
 	"go-insta-cli/pkg/auth"
 	"go-insta-cli/pkg/cli"
 	"go-insta-cli/pkg/config"
+	"go-insta-cli/pkg/posts"
 )
 
 var Version = "v1.0.0"
@@ -25,7 +27,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  login            Initiate Instagram interactive login and save session\n")
 	fmt.Fprintf(os.Stderr, "  logout           Clear active session and log out\n")
 	fmt.Fprintf(os.Stderr, "  status           Display current login and session status\n")
-	fmt.Fprintf(os.Stderr, "  posts            Fetch recent Instagram posts (requires login)\n")
+	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts (--limit <n>, --json)\n")
 	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (requires login)\n")
 	fmt.Fprintf(os.Stderr, "  show ui          Start local Web UI server (requires login)\n")
 }
@@ -77,6 +79,47 @@ func handleStatus() {
 	}
 }
 
+func handlePosts(args []string) {
+	limit := 10
+	isJSON := false
+
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--json" {
+			isJSON = true
+		} else if strings.HasPrefix(arg, "--limit=") {
+			parts := strings.Split(arg, "=")
+			if len(parts) == 2 {
+				if l, err := strconv.Atoi(parts[1]); err == nil {
+					limit = l
+				}
+			}
+		} else if arg == "--limit" && i+1 < len(args) {
+			if l, err := strconv.Atoi(args[i+1]); err == nil {
+				limit = l
+				i++
+			}
+		}
+	}
+
+	postList, err := posts.FetchPosts(limit)
+	if err != nil {
+		fmt.Printf("%sError fetching posts: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	if isJSON {
+		jsonStr, err := posts.RenderPostJSON(postList)
+		if err != nil {
+			fmt.Printf("%sError formatting JSON: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+			os.Exit(1)
+		}
+		fmt.Println(jsonStr)
+	} else {
+		posts.RenderPostTable(postList)
+	}
+}
+
 func main() {
 	showVersion := flag.Bool("version", false, "Show current version")
 	flag.BoolVar(showVersion, "v", false, "Show current version (shorthand)")
@@ -121,7 +164,7 @@ func main() {
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)
 		}
-		fmt.Printf("%sFetching Instagram posts...%s\n", cli.ColorCyan, cli.ColorReset)
+		handlePosts(args)
 	case "delete":
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)
