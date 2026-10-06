@@ -48,7 +48,8 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 ---
 
 ## Core Features
-- `login`: Authenticate and securely store session credentials.
+- `login <username>`: Authenticate and securely store session credentials in `~/.config/insta-cli/config.json`.
+- `status`: View current active login state, username, and session timestamp.
 - `posts`: View recent Instagram posts with likes, comments, and captions in terminal.
 - `delete <post_id>`: Remove specific posts safely with interactive `[y/N]` confirmation.
 - `show ui`: Launch an embedded local web dashboard (`http://localhost:8080`) on demand.
@@ -93,7 +94,7 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 ## 10-Step Implementation Roadmap
 
 - [x] **Step 1: Basic CLI & Subcommand Skeleton** *(Completed)*
-- [ ] **Step 2: Secure Local Configuration & Storage**
+- [x] **Step 2: Secure Local Configuration & Storage** *(Completed)*
 - [ ] **Step 3: Instagram Authentication Module**
 - [ ] **Step 4: Post Retrieval Engine**
 - [ ] **Step 5: Post Deletion Engine & Safety Mechanism**
@@ -122,8 +123,13 @@ insta --version
 # 3. Display Usage Guide
 insta --help
 
-# 4. Test Subcommands
-insta login
+# 4. Check Session Status
+insta status
+
+# 5. Authenticate & Save Session
+insta login mostafizdev01
+
+# 6. Test Subcommands
 insta posts
 insta delete
 insta show ui
