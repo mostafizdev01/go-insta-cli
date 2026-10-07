@@ -89,15 +89,46 @@ type InstagramWebProfileResponse struct {
 	Status string `json:"status"`
 }
 
-// extractUserID parses the ds_user_id from the sessionid string prefix.
+// extractUserID parses the ds_user_id from the sessionid string or cookie set.
 func extractUserID(sessionID string) string {
-	if idx := strings.Index(sessionID, "%3A"); idx > 0 {
-		return sessionID[:idx]
+	if idx := strings.Index(sessionID, "ds_user_id="); idx != -1 {
+		rest := sessionID[idx+len("ds_user_id="):]
+		if semi := strings.Index(rest, ";"); semi != -1 {
+			return strings.TrimSpace(rest[:semi])
+		}
+		return strings.TrimSpace(rest)
 	}
-	if idx := strings.Index(sessionID, ":"); idx > 0 {
-		return sessionID[:idx]
+	raw := sessionID
+	if idx := strings.Index(raw, "sessionid="); idx != -1 {
+		raw = raw[idx+len("sessionid="):]
+	}
+	if idx := strings.Index(raw, "%3A"); idx > 0 {
+		return raw[:idx]
+	}
+	if idx := strings.Index(raw, ":"); idx > 0 {
+		return raw[:idx]
 	}
 	return ""
+}
+
+// getFullCookieHeader constructs a full, sanitized Cookie header with harvested tokens.
+func (c *Client) getFullCookieHeader() string {
+	sessionID := strings.TrimSpace(c.SessionID)
+	sessionID = strings.TrimRight(sessionID, "; ")
+	if strings.Contains(sessionID, "csrftoken=") {
+		return sessionID
+	}
+
+	userID := extractUserID(sessionID)
+	header := sessionID
+	if !strings.Contains(header, "sessionid=") {
+		header = fmt.Sprintf("sessionid=%s", sessionID)
+	}
+	if userID != "" && !strings.Contains(header, "ds_user_id=") {
+		header += fmt.Sprintf("; ds_user_id=%s", userID)
+	}
+
+	return header
 }
 
 // ValidateGraphToken checks if the Meta Graph API access token is active and valid.
@@ -157,10 +188,10 @@ func (c *Client) FetchGraphAPIPosts(token string, limit int) ([]posts.Post, erro
 
 // FetchUserPosts retrieves real Instagram posts attempting Graph API, HTML profile scraping, and Web API.
 func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error) {
-	// Strategy 1: Attempt Meta Graph API fetch if SessionID looks like a Graph Access Token
-	if strings.HasPrefix(c.SessionID, "IG") || strings.HasPrefix(c.SessionID, "EAA") || !strings.Contains(c.SessionID, "%3A") {
+	// Strategy 1: Attempt Meta Graph API fetch if SessionID is a Graph Access Token
+	if strings.HasPrefix(c.SessionID, "IG") || strings.HasPrefix(c.SessionID, "EAA") {
 		postsList, err := c.FetchGraphAPIPosts(c.SessionID, limit)
-		if err == nil && len(postsList) > 0 {
+		if err == nil {
 			return postsList, nil
 		}
 	}
@@ -169,26 +200,19 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 		return nil, fmt.Errorf("username cannot be empty")
 	}
 
+	cookieHeader := c.getFullCookieHeader()
+
 	// Strategy 2: Web HTML Profile Scraping with Full Browser Cookies & Headers
 	profileURL := fmt.Sprintf("https://www.instagram.com/%s/", username)
 	reqHTML, err := http.NewRequest("GET", profileURL, nil)
 	if err == nil {
-		userID := extractUserID(c.SessionID)
 		reqHTML.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
 		reqHTML.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
 		reqHTML.Header.Set("Accept-Language", "en-US,en;q=0.9")
-
-		cookieHeader := c.SessionID
-		if !strings.Contains(cookieHeader, "sessionid=") {
-			cookieHeader = fmt.Sprintf("sessionid=%s;", c.SessionID)
-			if userID != "" {
-				cookieHeader += fmt.Sprintf(" ds_user_id=%s;", userID)
-			}
-		}
 		reqHTML.Header.Set("Cookie", cookieHeader)
 
 		respHTML, errHTML := c.HTTPClient.Do(reqHTML)
-		if errHTML == nil && respHTML.StatusCode == http.StatusOK {
+		if errHTML == nil && (respHTML.StatusCode == http.StatusOK || respHTML.StatusCode == http.StatusFound) {
 			bodyBytes, _ := io.ReadAll(respHTML.Body)
 			respHTML.Body.Close()
 			htmlStr := string(bodyBytes)
@@ -196,6 +220,10 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 			// Extract posts embedded inside profile HTML
 			scrapedPosts := parseHTMLPosts(htmlStr, limit)
 			if len(scrapedPosts) > 0 {
+				return scrapedPosts, nil
+			}
+			// If HTML request returned 200 OK and valid user profile payload, return real empty post array
+			if strings.Contains(htmlStr, username) || strings.Contains(htmlStr, "PolarisViewer") || respHTML.StatusCode == http.StatusOK {
 				return scrapedPosts, nil
 			}
 		}
@@ -208,19 +236,10 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 		return nil, fmt.Errorf("failed to create request: %w", err)
 	}
 
-	userID := extractUserID(c.SessionID)
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
 	req.Header.Set("X-IG-App-ID", "936619743392459")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
 	req.Header.Set("Referer", fmt.Sprintf("https://www.instagram.com/%s/", username))
-
-	cookieHeader := c.SessionID
-	if !strings.Contains(cookieHeader, "sessionid=") {
-		cookieHeader = fmt.Sprintf("sessionid=%s;", c.SessionID)
-		if userID != "" {
-			cookieHeader += fmt.Sprintf(" ds_user_id=%s;", userID)
-		}
-	}
 	req.Header.Set("Cookie", cookieHeader)
 
 	resp, err := c.HTTPClient.Do(req)
