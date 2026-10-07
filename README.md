@@ -98,8 +98,8 @@ Make Instagram management simple, fast, safe, and effortless—giving users full
 - [x] **Step 2: Secure Local Configuration & Storage** *(Completed)*
 - [x] **Step 3: Instagram Authentication Module** *(Completed)*
 - [x] **Step 4: Post Retrieval Engine** *(Completed)*
-- [ ] **Step 5: Post Deletion Engine & Safety Mechanism**
-- [ ] **Step 6: Embedded Local Web Server Core**
+- [x] **Step 5: Post Deletion Engine & Safety Mechanism** *(Completed)*
+- [x] **Step 6: Embedded Local Web Server Core** *(Completed)*
 - [ ] **Step 7: Interactive Web Dashboard UI**
 - [ ] **Step 8: Auto Browser Launch & CLI-Web Sync Engine**
 - [ ] **Step 9: API Rate Limiting & Account Protection Controls**

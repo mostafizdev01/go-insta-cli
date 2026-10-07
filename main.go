@@ -12,6 +12,7 @@ import (
 	"go-insta-cli/pkg/config"
 	"go-insta-cli/pkg/instagram"
 	"go-insta-cli/pkg/posts"
+	"go-insta-cli/pkg/server"
 )
 
 var Version = "v1.0.0"
@@ -31,6 +32,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts via Meta Graph API (--limit <n>, --json)\n")
 	fmt.Fprintf(os.Stderr, "  create <url>     Publish a new post via Meta Graph API\n")
 	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (--force / -f)\n")
+	fmt.Fprintf(os.Stderr, "  show ui          Start embedded local Web UI server (http://localhost:8080)\n")
 	fmt.Fprintf(os.Stderr, "  verify           Execute complete end-to-end Meta Graph API integration test\n")
 }
 
@@ -270,6 +272,10 @@ func main() {
 	}
 
 	command := strings.ToLower(args[0])
+	if command == "show" && len(args) > 1 && strings.ToLower(args[1]) == "ui" {
+		command = "show ui"
+	}
+
 	cfg, _ := config.LoadConfig()
 
 	switch command {
@@ -296,6 +302,14 @@ func main() {
 			os.Exit(1)
 		}
 		handleDelete(args, cfg)
+	case "show ui":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
+		if err := server.StartServer(cfg, "8080"); err != nil {
+			fmt.Printf("%sServer Error: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+			os.Exit(1)
+		}
 	default:
 		fmt.Fprintf(os.Stderr, "%sError: Unknown command '%s'%s\n\n", cli.ColorRed, strings.Join(args, " "), cli.ColorReset)
 		printUsage()
