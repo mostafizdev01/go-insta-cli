@@ -3,7 +3,10 @@ package instagram
 import (
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
+	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -16,7 +19,7 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
-// NewClient creates a new Instagram HTTP client using the provided session ID or Graph Access Token.
+// NewClient creates a new Instagram HTTP client using the provided session ID or Cookie string.
 func NewClient(sessionID string) *Client {
 	return &Client{
 		SessionID: sessionID,
@@ -152,9 +155,9 @@ func (c *Client) FetchGraphAPIPosts(token string, limit int) ([]posts.Post, erro
 	return result, nil
 }
 
-// FetchUserPosts retrieves real Instagram posts attempting official Graph API first, with Web API fallback.
+// FetchUserPosts retrieves real Instagram posts attempting Graph API, HTML profile scraping, and Web API.
 func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error) {
-	// Priority 1: Attempt official Meta Graph API fetch if SessionID is provided or is a Graph Access Token
+	// Strategy 1: Attempt Meta Graph API fetch if SessionID looks like a Graph Access Token
 	if strings.HasPrefix(c.SessionID, "IG") || strings.HasPrefix(c.SessionID, "EAA") || !strings.Contains(c.SessionID, "%3A") {
 		postsList, err := c.FetchGraphAPIPosts(c.SessionID, limit)
 		if err == nil && len(postsList) > 0 {
@@ -166,6 +169,39 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 		return nil, fmt.Errorf("username cannot be empty")
 	}
 
+	// Strategy 2: Web HTML Profile Scraping with Full Browser Cookies & Headers
+	profileURL := fmt.Sprintf("https://www.instagram.com/%s/", username)
+	reqHTML, err := http.NewRequest("GET", profileURL, nil)
+	if err == nil {
+		userID := extractUserID(c.SessionID)
+		reqHTML.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
+		reqHTML.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8")
+		reqHTML.Header.Set("Accept-Language", "en-US,en;q=0.9")
+
+		cookieHeader := c.SessionID
+		if !strings.Contains(cookieHeader, "sessionid=") {
+			cookieHeader = fmt.Sprintf("sessionid=%s;", c.SessionID)
+			if userID != "" {
+				cookieHeader += fmt.Sprintf(" ds_user_id=%s;", userID)
+			}
+		}
+		reqHTML.Header.Set("Cookie", cookieHeader)
+
+		respHTML, errHTML := c.HTTPClient.Do(reqHTML)
+		if errHTML == nil && respHTML.StatusCode == http.StatusOK {
+			bodyBytes, _ := io.ReadAll(respHTML.Body)
+			respHTML.Body.Close()
+			htmlStr := string(bodyBytes)
+
+			// Extract posts embedded inside profile HTML
+			scrapedPosts := parseHTMLPosts(htmlStr, limit)
+			if len(scrapedPosts) > 0 {
+				return scrapedPosts, nil
+			}
+		}
+	}
+
+	// Strategy 3: Standard Web Profile Info API
 	url := fmt.Sprintf("https://www.instagram.com/api/v1/users/web_profile_info/?username=%s", username)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -173,21 +209,19 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 	}
 
 	userID := extractUserID(c.SessionID)
-
-	// Set required Instagram Web browser headers
-	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
+	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36")
 	req.Header.Set("X-IG-App-ID", "936619743392459")
 	req.Header.Set("X-Requested-With", "XMLHttpRequest")
-	req.Header.Set("Accept", "*/*")
-	req.Header.Set("Accept-Language", "en-US,en;q=0.9")
+	req.Header.Set("Referer", fmt.Sprintf("https://www.instagram.com/%s/", username))
 
-	if c.SessionID != "" {
-		cookieHeader := fmt.Sprintf("sessionid=%s;", c.SessionID)
+	cookieHeader := c.SessionID
+	if !strings.Contains(cookieHeader, "sessionid=") {
+		cookieHeader = fmt.Sprintf("sessionid=%s;", c.SessionID)
 		if userID != "" {
 			cookieHeader += fmt.Sprintf(" ds_user_id=%s;", userID)
 		}
-		req.Header.Set("Cookie", cookieHeader)
 	}
+	req.Header.Set("Cookie", cookieHeader)
 
 	resp, err := c.HTTPClient.Do(req)
 	if err != nil {
@@ -196,7 +230,7 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 	defer resp.Body.Close()
 
 	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
-		return nil, fmt.Errorf("instagram authentication failed (HTTP %d). Please verify your sessionid or Graph token", resp.StatusCode)
+		return nil, fmt.Errorf("instagram authentication failed (HTTP %d)", resp.StatusCode)
 	}
 
 	if resp.StatusCode != http.StatusOK {
@@ -239,4 +273,73 @@ func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error
 	}
 
 	return result, nil
+}
+
+// parseHTMLPosts parses post nodes embedded inside HTML page scripts.
+func parseHTMLPosts(htmlStr string, limit int) []posts.Post {
+	var results []posts.Post
+
+	// Regular expressions to extract post display URLs and timestamps
+	reID := regexp.MustCompile(`"id":"(\d+)"`)
+	reURL := regexp.MustCompile(`"display_url":"(https:[^"]+)"`)
+	reText := regexp.MustCompile(`"text":"([^"]+)"`)
+	reLikes := regexp.MustCompile(`"edge_liked_by":\{"count":(\d+)\}`)
+	reComments := regexp.MustCompile(`"edge_media_to_comment":\{"count":(\d+)\}`)
+	reTime := regexp.MustCompile(`"taken_at_timestamp":(\d+)`)
+
+	ids := reID.FindAllStringSubmatch(htmlStr, -1)
+	urls := reURL.FindAllStringSubmatch(htmlStr, -1)
+	texts := reText.FindAllStringSubmatch(htmlStr, -1)
+	likes := reLikes.FindAllStringSubmatch(htmlStr, -1)
+	comments := reComments.FindAllStringSubmatch(htmlStr, -1)
+	times := reTime.FindAllStringSubmatch(htmlStr, -1)
+
+	minCount := len(ids)
+	if len(urls) < minCount {
+		minCount = len(urls)
+	}
+
+	for i := 0; i < minCount; i++ {
+		if limit > 0 && i >= limit {
+			break
+		}
+
+		id := ids[i][1]
+		displayURL := strings.ReplaceAll(urls[i][1], "\\u0026", "&")
+		displayURL = strings.ReplaceAll(displayURL, "\\/", "/")
+
+		caption := ""
+		if i < len(texts) {
+			caption = texts[i][1]
+		}
+
+		likeCount := 0
+		if i < len(likes) {
+			likeCount, _ = strconv.Atoi(likes[i][1])
+		}
+
+		commentCount := 0
+		if i < len(comments) {
+			commentCount, _ = strconv.Atoi(comments[i][1])
+		}
+
+		timestampStr := time.Now().Format("2006-01-02 15:04")
+		if i < len(times) {
+			if ts, err := strconv.ParseInt(times[i][1], 10, 64); err == nil {
+				timestampStr = time.Unix(ts, 0).Format("2006-01-02 15:04")
+			}
+		}
+
+		results = append(results, posts.Post{
+			ID:           id,
+			Caption:      caption,
+			Timestamp:    timestampStr,
+			LikeCount:    likeCount,
+			CommentCount: commentCount,
+			MediaType:    "IMAGE",
+			MediaURL:     displayURL,
+		})
+	}
+
+	return results
 }
