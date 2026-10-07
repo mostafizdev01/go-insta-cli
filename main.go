@@ -30,6 +30,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  status           Verify active Meta Graph API token and profile\n")
 	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts via Meta Graph API (--limit <n>, --json)\n")
 	fmt.Fprintf(os.Stderr, "  create <url>     Publish a new post via Meta Graph API\n")
+	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (--force / -f)\n")
 	fmt.Fprintf(os.Stderr, "  verify           Execute complete end-to-end Meta Graph API integration test\n")
 }
 
@@ -159,6 +160,52 @@ func handleCreate(args []string, cfg config.Config) {
 	posts.RenderCreateSuccess(postID)
 }
 
+func handleDelete(args []string, cfg config.Config) {
+	if len(args) < 2 {
+		fmt.Printf("%sUsage: insta delete <post_id> [--force|-f]%s\n", cli.ColorYellow, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	postID := ""
+	force := false
+
+	for i := 1; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--force" || arg == "-f" {
+			force = true
+		} else if postID == "" && !strings.HasPrefix(arg, "-") {
+			postID = arg
+		}
+	}
+
+	params := posts.DeletePostParams{
+		PostID: postID,
+		Force:  force,
+	}
+
+	if err := params.Validate(); err != nil {
+		fmt.Printf("%sError: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	if !params.Force {
+		confirmed := posts.ConfirmDeletion(params.PostID)
+		if !confirmed {
+			posts.RenderDeleteCancelled(params.PostID)
+			return
+		}
+	}
+
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+	err := client.DeleteMedia(params.PostID)
+	if err != nil {
+		posts.RenderDeleteError(params.PostID, err)
+		os.Exit(1)
+	}
+
+	posts.RenderDeleteSuccess(params.PostID)
+}
+
 func handleVerify(cfg config.Config) {
 	fmt.Printf("%sExecuting Meta Graph API End-to-End Integration Verification...%s\n\n", cli.ColorCyan, cli.ColorReset)
 
@@ -173,7 +220,7 @@ func handleVerify(cfg config.Config) {
 	// Step 1: User Profile Reachability Test
 	user, err := client.FetchUserProfile()
 	if err != nil {
-		fmt.Printf("%s[VERIFICATION FAILED]%s Unable to reach Meta Graph API with provided access token:\n  %v\n\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("%s[VERIFICATION FAILED]%s Unable to reach Meta Graph API with provided access token:\n  %v\n\n", cli.ColorRed, cli.ColorReset, err)
 		fmt.Printf("Implementation is not fully verified because real Instagram API access is not configured.\n")
 		os.Exit(1)
 	}
@@ -244,6 +291,11 @@ func main() {
 			os.Exit(1)
 		}
 		handleCreate(args, cfg)
+	case "delete":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
+		handleDelete(args, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "%sError: Unknown command '%s'%s\n\n", cli.ColorRed, strings.Join(args, " "), cli.ColorReset)
 		printUsage()
