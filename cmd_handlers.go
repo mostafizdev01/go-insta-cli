@@ -59,9 +59,11 @@ func handleStatus(cfg config.Config) {
 		return
 	}
 
-	fmt.Printf("  Status:     %sConnected (Verified via Meta Graph API)%s\n", cli.ColorGreen, cli.ColorReset)
-	fmt.Printf("  Username:   %s%s%s\n", cli.ColorGreen, user.Username, cli.ColorReset)
-	fmt.Printf("  Account ID: %s%s%s\n", cli.ColorGreen, user.ID, cli.ColorReset)
+	limiterSummary := instagram.GlobalLimiter.GetStatusSummary()
+	fmt.Printf("  Status:       %sConnected (Verified via Meta Graph API)%s\n", cli.ColorGreen, cli.ColorReset)
+	fmt.Printf("  Username:     %s%s%s\n", cli.ColorGreen, user.Username, cli.ColorReset)
+	fmt.Printf("  Account ID:   %s%s%s\n", cli.ColorGreen, user.ID, cli.ColorReset)
+	fmt.Printf("  Rate Limiter: %s%v%s (Safety Pause: %vms)\n", cli.ColorYellow, limiterSummary["status"], cli.ColorReset, limiterSummary["safety_interval_ms"])
 }
 
 func handlePosts(args []string, cfg config.Config) {

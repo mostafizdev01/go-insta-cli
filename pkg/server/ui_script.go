@@ -165,8 +165,14 @@ const indexJSFooter = `    <script>
         }
 
         function executeDelete(ids) {
-            var completed = 0;
-            ids.forEach(function(id) {
+            var index = 0;
+            function deleteNext() {
+                if (index >= ids.length) {
+                    loadPosts(true);
+                    return;
+                }
+                var id = ids[index];
+                showToast('Deleting post (' + (index + 1) + '/' + ids.length + ') - 3s safety pause...', 'info');
                 fetch('/api/delete?id=' + encodeURIComponent(id), { method: 'POST' })
                     .then(function(res) { return res.json(); })
                     .then(function(data) {
@@ -180,12 +186,15 @@ const indexJSFooter = `    <script>
                         showToast('Network error deleting post ' + id, 'error');
                     })
                     .finally(function() {
-                        completed++;
-                        if (completed === ids.length) {
-                            loadPosts();
+                        index++;
+                        if (index < ids.length) {
+                            setTimeout(deleteNext, 3000);
+                        } else {
+                            setTimeout(function() { loadPosts(true); }, 1000);
                         }
                     });
-            });
+            }
+            deleteNext();
         }
 
         function showToast(msg, type) {

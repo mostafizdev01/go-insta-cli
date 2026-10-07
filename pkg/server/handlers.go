@@ -39,6 +39,7 @@ func (s *Server) handleAPIStatus(w http.ResponseWriter, r *http.Request) {
 		"user_id":    user.ID,
 		"username":   user.Username,
 		"last_login": cfg.LastLogin,
+		"rate_limit": instagram.GlobalLimiter.GetStatusSummary(),
 	})
 }
 

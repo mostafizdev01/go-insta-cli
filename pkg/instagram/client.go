@@ -12,13 +12,31 @@ type Client struct {
 	HTTPClient  *http.Client
 }
 
-// NewClient creates a new Meta Graph API client.
+type rateLimitingTransport struct {
+	base http.RoundTripper
+}
+
+func (t *rateLimitingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if err := GlobalLimiter.Throttle(); err != nil {
+		return nil, err
+	}
+	base := t.base
+	if base == nil {
+		base = http.DefaultTransport
+	}
+	resp, err := base.RoundTrip(req)
+	GlobalLimiter.HandleResponse(resp, err)
+	return resp, err
+}
+
+// NewClient creates a new Meta Graph API client with automatic rate limiting.
 func NewClient(accessToken, accountID string) *Client {
 	return &Client{
 		AccessToken: accessToken,
 		AccountID:   accountID,
 		HTTPClient: &http.Client{
-			Timeout: 20 * time.Second,
+			Timeout:   20 * time.Second,
+			Transport: &rateLimitingTransport{base: http.DefaultTransport},
 		},
 	}
 }
