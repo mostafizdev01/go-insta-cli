@@ -284,11 +284,38 @@ const IndexHTML = `<!DOCTYPE html>
                 html += '<div class="metric-item">💬 ' + comments + '</div></div>';
                 html += '<div class="caption">' + escapeHtml(captionText) + '</div>';
                 html += '<div class="timestamp">' + timeStr + '</div></div>';
-                html += '<div class="card-footer">';
+                html += '<div class="card-footer" style="display:flex; gap:0.5rem; justify-content:flex-end;">';
+                html += '<button class="btn-primary" onclick="editSingle(\'' + post.id + '\')">Edit</button>';
                 html += '<button class="btn-danger" onclick="deleteSingle(\'' + post.id + '\')">Delete</button></div>';
 
                 card.innerHTML = html;
                 grid.appendChild(card);
+            });
+        }
+
+        function editSingle(id) {
+            var post = allPosts.find(function(p) { return p.id === id; });
+            var currentCaption = post ? post.caption : '';
+            var newCaption = prompt('Edit caption for post ID ' + id + ':', currentCaption);
+            if (newCaption === null || newCaption.trim() === '') return;
+
+            fetch('/api/edit?id=' + encodeURIComponent(id), {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: id, caption: newCaption })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast('Post caption updated successfully', 'success');
+                    if (post) post.caption = newCaption;
+                    renderGrid();
+                } else {
+                    showToast('Failed to edit post: ' + (data.error || 'API Error'), 'error');
+                }
+            })
+            .catch(function(e) {
+                showToast('Network error editing post ' + id, 'error');
             });
         }
 
