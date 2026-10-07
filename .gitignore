@@ -5,6 +5,11 @@
 *.so
 *.dylib
 
+# Environment Variables & Secrets
+.env
+.env.*
+!.env.example
+
 # Temporary test logs and responses
 *.html
 *.json

@@ -11,69 +11,57 @@ import (
 	"go-insta-cli/pkg/config"
 )
 
-// RequireAuth checks if the user is logged in and has a valid session token.
-// If not authenticated, it prints a red error message and returns false.
+// RequireAuth checks if a valid Meta Graph API Access Token is present.
 func RequireAuth(cfg config.Config) bool {
-	if !cfg.IsLoggedIn || strings.TrimSpace(cfg.SessionToken) == "" {
-		fmt.Printf("%sError: You must be logged in. Run 'insta login' first.%s\n", cli.ColorRed, cli.ColorReset)
+	if !cfg.IsLoggedIn || strings.TrimSpace(cfg.AccessToken) == "" {
+		fmt.Printf("%sError: Meta Graph API Access Token is missing.%s\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("Please set INSTAGRAM_ACCESS_TOKEN environment variable or run 'insta login'.\n")
 		return false
 	}
 	return true
 }
 
-// PerformLogin prompts for credentials if necessary, validates them, and saves session.
-func PerformLogin(username, sessionToken string) (config.Config, error) {
+// PerformLogin prompts for Meta Graph Access Token and Account ID, saving config.
+func PerformLogin(accessToken, accountID string) (config.Config, error) {
 	reader := bufio.NewReader(os.Stdin)
 
-	if username == "" {
-		fmt.Printf("%sEnter Instagram Username or App Name: %s", cli.ColorCyan, cli.ColorReset)
+	if accessToken == "" {
+		fmt.Printf("%sEnter Meta Graph API Access Token (EAA... or IG...): %s", cli.ColorCyan, cli.ColorReset)
 		input, err := reader.ReadString('\n')
 		if err != nil {
-			return config.Config{}, fmt.Errorf("failed to read username: %w", err)
+			return config.Config{}, fmt.Errorf("failed to read access token: %w", err)
 		}
-		username = strings.TrimSpace(input)
+		accessToken = strings.TrimSpace(input)
 	}
 
-	if sessionToken == "" {
-		fmt.Printf("%sEnter Meta Access Token / Instagram Session Cookie: %s", cli.ColorCyan, cli.ColorReset)
-		input, err := reader.ReadString('\n')
-		if err != nil {
-			return config.Config{}, fmt.Errorf("failed to read session token: %w", err)
-		}
-		sessionToken = strings.TrimSpace(input)
+	if strings.Contains(accessToken, "sessionid=") || strings.Contains(accessToken, "csrftoken=") {
+		return config.Config{}, fmt.Errorf("browser cookies are NOT supported. Please provide an official Meta Graph API Access Token")
 	}
 
-	if username == "" || sessionToken == "" {
-		return config.Config{}, fmt.Errorf("username and session token cannot be empty")
+	if accountID == "" {
+		fmt.Printf("%sEnter Instagram Account ID (optional, press Enter to skip): %s", cli.ColorCyan, cli.ColorReset)
+		input, _ := reader.ReadString('\n')
+		accountID = strings.TrimSpace(input)
 	}
 
 	cfg := config.Config{
-		Username:     username,
-		SessionToken: sessionToken,
-		IsLoggedIn:   true,
-		LastLogin:    time.Now().Format(time.RFC3339),
+		AccessToken: accessToken,
+		AccountID:   accountID,
+		IsLoggedIn:  true,
+		LastLogin:   time.Now().Format(time.RFC3339),
 	}
 
 	if err := config.SaveConfig(cfg); err != nil {
-		return config.Config{}, fmt.Errorf("failed to persist session: %w", err)
+		return config.Config{}, fmt.Errorf("failed to save config: %w", err)
 	}
 
 	return cfg, nil
 }
 
-// PerformLogout clears active session data from config.json.
+// PerformLogout clears active Meta credentials.
 func PerformLogout() error {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		return fmt.Errorf("failed to load session: %w", err)
+	cfg := config.Config{
+		IsLoggedIn: false,
 	}
-
-	cfg.IsLoggedIn = false
-	cfg.SessionToken = ""
-
-	if err := config.SaveConfig(cfg); err != nil {
-		return fmt.Errorf("failed to clear session: %w", err)
-	}
-
-	return nil
+	return config.SaveConfig(cfg)
 }

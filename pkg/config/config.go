@@ -1,24 +1,24 @@
 package config
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
-// Config holds user configuration and active session details.
+// Config holds user configuration and Meta Graph API credentials.
 type Config struct {
-	Username     string `json:"username"`
-	SessionToken string `json:"session_token"`
-	IsLoggedIn   bool   `json:"is_logged_in"`
-	LastLogin    string `json:"last_login"`
+	AccessToken string `json:"access_token"`
+	AccountID   string `json:"account_id"`
+	Username    string `json:"username"`
+	IsLoggedIn  bool   `json:"is_logged_in"`
+	LastLogin   string `json:"last_login"`
 }
 
 // GetConfigFilePath returns the absolute path to ~/.config/insta-cli/config.json.
-// It also ensures that the target directory exists.
 func GetConfigFilePath() (string, error) {
 	homeDir, err := os.UserHomeDir()
 	if err != nil {
@@ -33,31 +33,25 @@ func GetConfigFilePath() (string, error) {
 	return filepath.Join(configDir, "config.json"), nil
 }
 
-// encodeToken obfuscates the session token using Base64 encoding.
-func encodeToken(token string) string {
-	if token == "" {
-		return ""
-	}
-	return base64.StdEncoding.EncodeToString([]byte(token))
-}
-
-// decodeToken decodes the Base64 obfuscated session token.
-func decodeToken(token string) string {
-	if token == "" {
-		return ""
-	}
-	data, err := base64.StdEncoding.DecodeString(token)
-	if err != nil {
-		return token
-	}
-	return string(data)
-}
-
-// LoadConfig reads and decodes the configuration file from disk.
+// LoadConfig reads configuration from Environment Variables or disk config.
 func LoadConfig() (Config, error) {
+	var cfg Config
+
+	// 1. Check environment variables first
+	envToken := strings.TrimSpace(os.Getenv("INSTAGRAM_ACCESS_TOKEN"))
+	envAccountID := strings.TrimSpace(os.Getenv("INSTAGRAM_ACCOUNT_ID"))
+
+	if envToken != "" {
+		cfg.AccessToken = envToken
+		cfg.AccountID = envAccountID
+		cfg.IsLoggedIn = true
+		return cfg, nil
+	}
+
+	// 2. Read from config file if env variables are empty
 	path, err := GetConfigFilePath()
 	if err != nil {
-		return Config{}, err
+		return cfg, err
 	}
 
 	if _, err := os.Stat(path); os.IsNotExist(err) {
@@ -66,19 +60,21 @@ func LoadConfig() (Config, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return Config{}, fmt.Errorf("failed to read config file: %w", err)
+		return cfg, fmt.Errorf("failed to read config file: %w", err)
 	}
 
-	var cfg Config
 	if err := json.Unmarshal(data, &cfg); err != nil {
-		return Config{}, fmt.Errorf("failed to parse config JSON: %w", err)
+		return cfg, fmt.Errorf("failed to parse config JSON: %w", err)
 	}
 
-	cfg.SessionToken = decodeToken(cfg.SessionToken)
+	if cfg.AccessToken != "" {
+		cfg.IsLoggedIn = true
+	}
+
 	return cfg, nil
 }
 
-// SaveConfig obfuscates credentials and writes config to disk with 0600 permissions.
+// SaveConfig writes configuration to disk with 0600 permissions.
 func SaveConfig(cfg Config) error {
 	path, err := GetConfigFilePath()
 	if err != nil {
@@ -86,7 +82,6 @@ func SaveConfig(cfg Config) error {
 	}
 
 	saveCfg := cfg
-	saveCfg.SessionToken = encodeToken(cfg.SessionToken)
 	if saveCfg.LastLogin == "" {
 		saveCfg.LastLogin = time.Now().Format(time.RFC3339)
 	}

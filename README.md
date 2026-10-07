@@ -140,4 +140,52 @@ insta logout
 ```
 
 ---
+
+## Verification
+
+### Setup Requirements
+- Meta for Developers Account ([developers.facebook.com](https://developers.facebook.com/))
+- Configured Instagram Graph API Access Token (`INSTAGRAM_ACCESS_TOKEN`)
+- Connected Instagram Account ID (`INSTAGRAM_ACCOUNT_ID`)
+
+### Required Environment Variables
+See `.env.example` for reference:
+```bash
+INSTAGRAM_ACCESS_TOKEN=EAA...
+INSTAGRAM_ACCOUNT_ID=17841...
+```
+
+### Exact Command to Run
+```powershell
+insta verify
+```
+
+### Expected Successful Output
+```
+Executing Meta Graph API End-to-End Integration Verification...
+
+[PASSED] Reached Meta Graph API successfully.
+  User ID:   17841458817135842
+  Username:  mostafizdev01
+
+[PASSED] Retrieved 2 real Instagram posts from account.
+
+[1] Post ID: 1792348719234 (2026-10-07 14:00)
+    Caption:  Building a self-updating CLI with Meta Graph API!
+    Type:     IMAGE
+    Metrics:  12 Likes | 3 Comments
+    --------------------------------------------------
+
+[VERIFICATION SUCCESSFUL] Real Instagram API integration verified successfully!
+```
+
+### Common Failure Messages and Meaning
+1. `INSTAGRAM_ACCESS_TOKEN is missing`: The `INSTAGRAM_ACCESS_TOKEN` environment variable or config file is not configured.
+2. `Meta API Error (190): Invalid OAuth access token`: The access token is invalid, expired, or revoked.
+3. `Meta API Error (10): Permission Error`: The Meta access token lacks required `instagram_basic` or `pages_show_list` permissions.
+4. `Implementation is not fully verified because real Instagram API access is not configured.`: Printed when credentials/permissions are missing or incomplete.
+
+---
+
 Maintained by [@mostafizdev01](https://github.com/mostafizdev01)
+

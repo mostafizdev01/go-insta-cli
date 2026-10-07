@@ -18,44 +18,6 @@ type Post struct {
 	MediaURL     string `json:"media_url"`
 }
 
-// MockPosts returns fallback mock data for testing.
-func MockPosts(limit int) []Post {
-	mockPosts := []Post{
-		{
-			ID:           "32849102839",
-			Caption:      "Building a self-updating Go CLI tool for Instagram management!",
-			Timestamp:    "2026-10-06 14:30",
-			LikeCount:    142,
-			CommentCount: 18,
-			MediaType:    "IMAGE",
-			MediaURL:     "https://instagram.fsan.fna.fbcdn.net/p/32849102839.jpg",
-		},
-		{
-			ID:           "32849102840",
-			Caption:      "System design architecture and prompt engineering workflow.",
-			Timestamp:    "2026-10-05 18:45",
-			LikeCount:    98,
-			CommentCount: 7,
-			MediaType:    "IMAGE",
-			MediaURL:     "https://instagram.fsan.fna.fbcdn.net/p/32849102840.jpg",
-		},
-		{
-			ID:           "32849102841",
-			Caption:      "Local Web Dashboard UI preview coming soon!",
-			Timestamp:    "2026-10-04 11:15",
-			LikeCount:    256,
-			CommentCount: 34,
-			MediaType:    "CAROUSEL_ALBUM",
-			MediaURL:     "https://instagram.fsan.fna.fbcdn.net/p/32849102841.jpg",
-		},
-	}
-
-	if limit > 0 && limit < len(mockPosts) {
-		return mockPosts[:limit]
-	}
-	return mockPosts
-}
-
 // RenderPostTable displays formatted ANSI colorized list of posts in the terminal.
 func RenderPostTable(posts []Post) {
 	if len(posts) == 0 {

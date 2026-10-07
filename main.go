@@ -25,33 +25,33 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  -v, --version    Show current version\n")
 	fmt.Fprintf(os.Stderr, "  -h, --help       Show help usage guide\n\n")
 	fmt.Fprintf(os.Stderr, "Subcommands:\n")
-	fmt.Fprintf(os.Stderr, "  login            Initiate Instagram interactive login and save session\n")
-	fmt.Fprintf(os.Stderr, "  logout           Clear active session and log out\n")
-	fmt.Fprintf(os.Stderr, "  status           Display current login and session status\n")
-	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts (--limit <n>, --json)\n")
-	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (requires login)\n")
-	fmt.Fprintf(os.Stderr, "  show ui          Start local Web UI server (requires login)\n")
+	fmt.Fprintf(os.Stderr, "  login            Save Meta Graph API Access Token and Account ID\n")
+	fmt.Fprintf(os.Stderr, "  logout           Clear active credentials\n")
+	fmt.Fprintf(os.Stderr, "  status           Verify active Meta Graph API token and profile\n")
+	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts via Meta Graph API (--limit <n>, --json)\n")
+	fmt.Fprintf(os.Stderr, "  create <url>     Publish a new post via Meta Graph API\n")
+	fmt.Fprintf(os.Stderr, "  verify           Execute complete end-to-end Meta Graph API integration test\n")
 }
 
 func handleLogin(args []string) {
-	username := ""
-	sessionToken := ""
+	token := ""
+	accountID := ""
 
 	if len(args) > 1 {
-		username = args[1]
+		token = args[1]
 	}
 	if len(args) > 2 {
-		sessionToken = args[2]
+		accountID = args[2]
 	}
 
-	fmt.Printf("%sInitiating Instagram login process...%s\n", cli.ColorYellow, cli.ColorReset)
-	cfg, err := auth.PerformLogin(username, sessionToken)
+	fmt.Printf("%sInitiating Meta Graph API authentication...%s\n", cli.ColorYellow, cli.ColorReset)
+	_, err := auth.PerformLogin(token, accountID)
 	if err != nil {
 		fmt.Printf("%sError during login: %v%s\n", cli.ColorRed, err, cli.ColorReset)
 		os.Exit(1)
 	}
 
-	fmt.Printf("%sSuccessfully authenticated and saved session for '%s'.%s\n", cli.ColorGreen, cfg.Username, cli.ColorReset)
+	fmt.Printf("%sSuccessfully authenticated and saved Meta Graph credentials.%s\n", cli.ColorGreen, cli.ColorReset)
 }
 
 func handleLogout() {
@@ -59,25 +59,29 @@ func handleLogout() {
 		fmt.Printf("%sError during logout: %v%s\n", cli.ColorRed, err, cli.ColorReset)
 		os.Exit(1)
 	}
-	fmt.Printf("%sLogged out successfully. Session cleared.%s\n", cli.ColorYellow, cli.ColorReset)
+	fmt.Printf("%sLogged out successfully. Credentials cleared.%s\n", cli.ColorYellow, cli.ColorReset)
 }
 
-func handleStatus() {
-	cfg, err := config.LoadConfig()
-	if err != nil {
-		fmt.Printf("%sError loading status: %v%s\n", cli.ColorRed, err, cli.ColorReset)
-		os.Exit(1)
+func handleStatus(cfg config.Config) {
+	fmt.Printf("%sMeta Instagram Graph API Integration Status:%s\n", cli.ColorCyan, cli.ColorReset)
+
+	if !cfg.IsLoggedIn || strings.TrimSpace(cfg.AccessToken) == "" {
+		fmt.Printf("  Status:     %sNot Configured%s\n", cli.ColorYellow, cli.ColorReset)
+		fmt.Printf("  Message:    Set INSTAGRAM_ACCESS_TOKEN environment variable or run 'insta login'.\n")
+		return
 	}
 
-	fmt.Printf("%sInstagram CLI Session Status:%s\n", cli.ColorCyan, cli.ColorReset)
-	if cfg.IsLoggedIn {
-		fmt.Printf("  Status:     %sLogged In%s\n", cli.ColorGreen, cli.ColorReset)
-		fmt.Printf("  Username:   %s%s%s\n", cli.ColorGreen, cfg.Username, cli.ColorReset)
-		fmt.Printf("  Last Login: %s\n", cfg.LastLogin)
-	} else {
-		fmt.Printf("  Status:     %sLogged Out%s\n", cli.ColorYellow, cli.ColorReset)
-		fmt.Printf("  Message:    Run 'insta login' to authenticate.\n")
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+	user, err := client.FetchUserProfile()
+	if err != nil {
+		fmt.Printf("  Status:     %sInvalid Credentials / Expired Token%s\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("  Error:      %v\n", err)
+		return
 	}
+
+	fmt.Printf("  Status:     %sConnected (Verified via Meta Graph API)%s\n", cli.ColorGreen, cli.ColorReset)
+	fmt.Printf("  Username:   %s%s%s\n", cli.ColorGreen, user.Username, cli.ColorReset)
+	fmt.Printf("  Account ID: %s%s%s\n", cli.ColorGreen, user.ID, cli.ColorReset)
 }
 
 func handlePosts(args []string, cfg config.Config) {
@@ -103,12 +107,11 @@ func handlePosts(args []string, cfg config.Config) {
 		}
 	}
 
-	client := instagram.NewClient(cfg.SessionToken)
-	postList, err := client.FetchUserPosts(cfg.Username, limit)
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+	postList, err := client.FetchUserPosts(limit)
 	if err != nil {
-		fmt.Printf("%s[Instagram API Notice] %v%s\n", cli.ColorYellow, err, cli.ColorReset)
-		fmt.Printf("%sFalling back to test data provider...%s\n\n", cli.ColorCyan, cli.ColorReset)
-		postList = posts.MockPosts(limit)
+		fmt.Printf("%s[Meta Graph API Error] %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
 	}
 
 	if isJSON {
@@ -121,6 +124,76 @@ func handlePosts(args []string, cfg config.Config) {
 	} else {
 		posts.RenderPostTable(postList)
 	}
+}
+
+func handleCreate(args []string, cfg config.Config) {
+	if len(args) < 2 {
+		fmt.Printf("%sUsage: insta create <image_url> [caption...]%s\n", cli.ColorYellow, cli.ColorReset)
+		return
+	}
+
+	imageURL := args[1]
+	caption := ""
+	if len(args) > 2 {
+		caption = strings.Join(args[2:], " ")
+	}
+
+	params := posts.CreatePostParams{
+		ImageURL: imageURL,
+		Caption:  caption,
+	}
+
+	if err := params.Validate(); err != nil {
+		fmt.Printf("%sError: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	fmt.Printf("%sPublishing post via Meta Content Publishing API...%s\n", cli.ColorYellow, cli.ColorReset)
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+	postID, err := client.PublishMedia(params.ImageURL, params.Caption)
+	if err != nil {
+		fmt.Printf("%sError creating post: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	posts.RenderCreateSuccess(postID)
+}
+
+func handleVerify(cfg config.Config) {
+	fmt.Printf("%sExecuting Meta Graph API End-to-End Integration Verification...%s\n\n", cli.ColorCyan, cli.ColorReset)
+
+	if strings.TrimSpace(cfg.AccessToken) == "" {
+		fmt.Printf("%s[VERIFICATION FAILED]%s INSTAGRAM_ACCESS_TOKEN environment variable is not configured.\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("Implementation is not fully verified because real Instagram API access is not configured.\n")
+		os.Exit(1)
+	}
+
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+
+	// Step 1: User Profile Reachability Test
+	user, err := client.FetchUserProfile()
+	if err != nil {
+		fmt.Printf("%s[VERIFICATION FAILED]%s Unable to reach Meta Graph API with provided access token:\n  %v\n\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("Implementation is not fully verified because real Instagram API access is not configured.\n")
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s[PASSED]%s Reached Meta Graph API successfully.\n", cli.ColorGreen, cli.ColorReset)
+	fmt.Printf("  User ID:   %s\n", user.ID)
+	fmt.Printf("  Username:  %s\n\n", user.Username)
+
+	// Step 2: Media Retrieval Test
+	postsList, err := client.FetchUserPosts(5)
+	if err != nil {
+		fmt.Printf("%s[VERIFICATION FAILED]%s Profile reached, but media fetch failed:\n  %v\n\n", cli.ColorRed, cli.ColorReset, err)
+		fmt.Printf("Implementation is not fully verified because real Instagram API permissions are missing.\n")
+		os.Exit(1)
+	}
+
+	fmt.Printf("%s[PASSED]%s Retrieved %d real Instagram posts from account.\n\n", cli.ColorGreen, len(postsList))
+	posts.RenderPostTable(postsList)
+
+	fmt.Printf("%s[VERIFICATION SUCCESSFUL]%s Real Instagram API integration verified successfully!\n", cli.ColorGreen, cli.ColorReset)
 }
 
 func main() {
@@ -150,10 +223,6 @@ func main() {
 	}
 
 	command := strings.ToLower(args[0])
-	if command == "show" && len(args) > 1 && strings.ToLower(args[1]) == "ui" {
-		command = "show ui"
-	}
-
 	cfg, _ := config.LoadConfig()
 
 	switch command {
@@ -162,22 +231,19 @@ func main() {
 	case "logout":
 		handleLogout()
 	case "status":
-		handleStatus()
+		handleStatus(cfg)
+	case "verify":
+		handleVerify(cfg)
 	case "posts":
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)
 		}
 		handlePosts(args, cfg)
-	case "delete":
+	case "create":
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)
 		}
-		fmt.Printf("%sUsage: delete <post_id>%s\n", cli.ColorYellow, cli.ColorReset)
-	case "show ui":
-		if !auth.RequireAuth(cfg) {
-			os.Exit(1)
-		}
-		fmt.Printf("%sStarting local web UI server...%s\n", cli.ColorGreen, cli.ColorReset)
+		handleCreate(args, cfg)
 	default:
 		fmt.Fprintf(os.Stderr, "%sError: Unknown command '%s'%s\n\n", cli.ColorRed, strings.Join(args, " "), cli.ColorReset)
 		printUsage()
