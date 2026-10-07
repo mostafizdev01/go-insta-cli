@@ -26,7 +26,7 @@ func PerformLogin(username, sessionToken string) (config.Config, error) {
 	reader := bufio.NewReader(os.Stdin)
 
 	if username == "" {
-		fmt.Printf("%sEnter Instagram Username: %s", cli.ColorCyan, cli.ColorReset)
+		fmt.Printf("%sEnter Instagram Username or App Name: %s", cli.ColorCyan, cli.ColorReset)
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return config.Config{}, fmt.Errorf("failed to read username: %w", err)
@@ -35,7 +35,7 @@ func PerformLogin(username, sessionToken string) (config.Config, error) {
 	}
 
 	if sessionToken == "" {
-		fmt.Printf("%sEnter Instagram Password / Session Cookie (sessionid): %s", cli.ColorCyan, cli.ColorReset)
+		fmt.Printf("%sEnter Meta Access Token / Instagram Session Cookie: %s", cli.ColorCyan, cli.ColorReset)
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			return config.Config{}, fmt.Errorf("failed to read session token: %w", err)

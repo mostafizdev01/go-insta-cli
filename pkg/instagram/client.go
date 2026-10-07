@@ -97,6 +97,20 @@ func extractUserID(sessionID string) string {
 	return ""
 }
 
+// ValidateGraphToken checks if the Meta Graph API access token is active and valid.
+func (c *Client) ValidateGraphToken(token string) bool {
+	if token == "" {
+		return false
+	}
+	url := fmt.Sprintf("https://graph.instagram.com/v19.0/me?fields=id,username&access_token=%s", token)
+	resp, err := c.HTTPClient.Get(url)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
 // FetchGraphAPIPosts fetches live posts using official Instagram Meta Graph API (graph.instagram.com/v19.0/me/media).
 func (c *Client) FetchGraphAPIPosts(token string, limit int) ([]posts.Post, error) {
 	if token == "" {
@@ -140,7 +154,7 @@ func (c *Client) FetchGraphAPIPosts(token string, limit int) ([]posts.Post, erro
 
 // FetchUserPosts retrieves real Instagram posts attempting official Graph API first, with Web API fallback.
 func (c *Client) FetchUserPosts(username string, limit int) ([]posts.Post, error) {
-	// Attempt official Graph API fetch if SessionID looks like a Graph Access Token or user token
+	// Priority 1: Attempt official Meta Graph API fetch if SessionID is provided or is a Graph Access Token
 	if strings.HasPrefix(c.SessionID, "IG") || strings.HasPrefix(c.SessionID, "EAA") || !strings.Contains(c.SessionID, "%3A") {
 		postsList, err := c.FetchGraphAPIPosts(c.SessionID, limit)
 		if err == nil && len(postsList) > 0 {
