@@ -12,7 +12,11 @@ import (
 	"go-insta-cli/pkg/server"
 )
 
-var Version = "v1.0.0"
+var (
+	Version   = "v1.0.0"
+	BuildDate = "2026-10-07"
+	GitCommit = "dev"
+)
 
 func printUsage() {
 	fmt.Fprintf(os.Stderr, "%sInstagram Management CLI (%sgo-insta-cli%s)%s\n\n", cli.ColorCyan, cli.ColorGreen, cli.ColorCyan, cli.ColorReset)
@@ -31,6 +35,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (--force / -f)\n")
 	fmt.Fprintf(os.Stderr, "  show ui          Start embedded local Web UI server (http://localhost:8080)\n")
 	fmt.Fprintf(os.Stderr, "  verify           Execute complete end-to-end Meta Graph API integration test\n")
+	fmt.Fprintf(os.Stderr, "  version          Display detailed version and build information\n")
 }
 
 func main() {
@@ -41,7 +46,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("go-insta-cli version %s\n", Version)
+		fmt.Printf("go-insta-cli version %s (built: %s, commit: %s)\n", Version, BuildDate, GitCommit)
 		return
 	}
 
@@ -62,6 +67,8 @@ func main() {
 	}
 
 	switch command {
+	case "version":
+		fmt.Printf("go-insta-cli version %s (built: %s, commit: %s)\n", Version, BuildDate, GitCommit)
 	case "login":
 		handleLogin(args)
 	case "logout":
