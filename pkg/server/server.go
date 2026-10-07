@@ -44,6 +44,7 @@ func StartServer(cfg config.Config, port string) error {
 	srv := NewServer(cfg, port)
 	mux := http.NewServeMux()
 
+	mux.HandleFunc("/", srv.handleIndex)
 	mux.HandleFunc("/api/status", srv.handleAPIStatus)
 	mux.HandleFunc("/api/posts", srv.handleAPIPosts)
 	mux.HandleFunc("/api/delete", srv.handleAPIDelete)
