@@ -1,0 +1,16 @@
+# Binaries
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Temporary test logs and responses
+*.html
+*.json
+!docs/**/*.json
+!pkg/**/*.json
+
+# OS generated files
+.DS_Store
+Thumbs.db
