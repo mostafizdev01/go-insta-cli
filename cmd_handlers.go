@@ -232,14 +232,34 @@ func handleVerify(cfg config.Config) {
 
 func handleEdit(args []string, cfg config.Config) {
 	if len(args) < 3 {
-		fmt.Printf("%sError: Post ID and new caption required. Usage: insta edit <post_id> <new_caption>%s\n", cli.ColorRed, cli.ColorReset)
+		fmt.Printf("%sError: Post ID and new image URL or caption required. Usage: insta edit <post_id> [--image <url>] [caption]%s\n", cli.ColorRed, cli.ColorReset)
 		os.Exit(1)
 	}
 
 	postID := args[1]
-	newCaption := strings.Join(args[2:], " ")
+	newImageURL := ""
+	newCaption := ""
 
-	fmt.Printf("%sUpdating Instagram post caption for post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
-	fmt.Printf("%s✓ Post '%s' caption updated successfully!%s\n", cli.ColorGreen, postID, cli.ColorReset)
-	fmt.Printf("  New Caption: %s\n", newCaption)
+	for i := 2; i < len(args); i++ {
+		arg := args[i]
+		if arg == "--image" && i+1 < len(args) {
+			newImageURL = args[i+1]
+			i++
+		} else if (strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://")) && newImageURL == "" {
+			newImageURL = arg
+		} else {
+			if newCaption != "" {
+				newCaption += " "
+			}
+			newCaption += arg
+		}
+	}
+
+	fmt.Printf("%sUpdating Instagram post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
+	if newImageURL != "" {
+		fmt.Printf("%s✓ Post '%s' image updated successfully to: %s%s\n", cli.ColorGreen, postID, newImageURL, cli.ColorReset)
+	}
+	if newCaption != "" {
+		fmt.Printf("%s✓ Post '%s' caption updated successfully to: %s%s\n", cli.ColorGreen, postID, newCaption, cli.ColorReset)
+	}
 }
