@@ -32,6 +32,7 @@ func printUsage() {
 	fmt.Fprintf(os.Stderr, "  status           Verify active Meta Graph API token and profile\n")
 	fmt.Fprintf(os.Stderr, "  posts [options]  Fetch recent Instagram posts via Meta Graph API (--limit <n>, --json)\n")
 	fmt.Fprintf(os.Stderr, "  create <url>     Publish a new post via Meta Graph API\n")
+	fmt.Fprintf(os.Stderr, "  edit <id> <text> Update/edit caption of a specific Instagram post\n")
 	fmt.Fprintf(os.Stderr, "  delete <id>      Delete a specific Instagram post (--force / -f)\n")
 	fmt.Fprintf(os.Stderr, "  show ui          Start embedded local Web UI server (http://localhost:8080)\n")
 	fmt.Fprintf(os.Stderr, "  verify           Execute complete end-to-end Meta Graph API integration test\n")
@@ -87,6 +88,11 @@ func main() {
 			os.Exit(1)
 		}
 		handleCreate(args, cfg)
+	case "edit", "update":
+		if !auth.RequireAuth(cfg) {
+			os.Exit(1)
+		}
+		handleEdit(args, cfg)
 	case "delete":
 		if !auth.RequireAuth(cfg) {
 			os.Exit(1)

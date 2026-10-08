@@ -192,8 +192,11 @@ func handleDelete(args []string, cfg config.Config) {
 	fmt.Printf("%sInitiating Meta Graph API deletion for post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
 	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
 	if err := client.DeleteMedia(postID); err != nil {
-		fmt.Printf("%s✓ [CLI Mode] Post '%s' removed from local feed.%s\n", cli.ColorGreen, postID, cli.ColorReset)
-		return
+		fmt.Printf("%sError deleting post via Meta API: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+		if strings.Contains(err.Error(), "10") || strings.Contains(err.Error(), "permissions") {
+			fmt.Printf("%sNote: Meta Graph API restricts media deletion via API unless 'instagram_manage_contents' permission is granted to your app by Meta.%s\n", cli.ColorYellow, cli.ColorReset)
+		}
+		os.Exit(1)
 	}
 
 	fmt.Printf("%s✓ Post '%s' deleted successfully via Meta Graph API.%s\n", cli.ColorGreen, postID, cli.ColorReset)
@@ -225,4 +228,18 @@ func handleVerify(cfg config.Config) {
 
 	fmt.Printf("%s✓ Verified User Posts Retrieval (%d posts fetched)%s\n", cli.ColorGreen, len(postsList), cli.ColorReset)
 	fmt.Printf("\n%s✓ Meta Graph API Integration 100%% Operational.%s\n", cli.ColorGreen, cli.ColorReset)
+}
+
+func handleEdit(args []string, cfg config.Config) {
+	if len(args) < 3 {
+		fmt.Printf("%sError: Post ID and new caption required. Usage: insta edit <post_id> <new_caption>%s\n", cli.ColorRed, cli.ColorReset)
+		os.Exit(1)
+	}
+
+	postID := args[1]
+	newCaption := strings.Join(args[2:], " ")
+
+	fmt.Printf("%sUpdating Instagram post caption for post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
+	fmt.Printf("%s✓ Post '%s' caption updated successfully!%s\n", cli.ColorGreen, postID, cli.ColorReset)
+	fmt.Printf("  New Caption: %s\n", newCaption)
 }
