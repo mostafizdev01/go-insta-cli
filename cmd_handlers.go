@@ -259,6 +259,7 @@ func handleEdit(args []string, cfg config.Config) {
 	}
 
 	fmt.Printf("%sUpdating Instagram post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
 
 	if newImageURL != "" {
 		fmt.Printf("%s⚠ Meta API Policy Restriction: Meta Graph API (v19.0) locks published photo files on Instagram's CDN.%s\n", cli.ColorYellow, cli.ColorReset)
@@ -266,7 +267,14 @@ func handleEdit(args []string, cfg config.Config) {
 	}
 
 	if newCaption != "" {
-		fmt.Printf("%s✓ Post '%s' caption updated successfully!%s\n", cli.ColorGreen, postID, cli.ColorReset)
+		if err := client.UpdateMediaCaption(postID, newCaption); err != nil {
+			fmt.Printf("%sError updating caption via Meta API: %v%s\n", cli.ColorRed, err, cli.ColorReset)
+			if strings.Contains(err.Error(), "100") || strings.Contains(err.Error(), "comment_enabled") {
+				fmt.Printf("%sNote: Meta Graph API (v19.0) restricts modifying captions of published media nodes directly via API (supported fields: comment_enabled, status). Captions must be edited directly in the Instagram Mobile App.%s\n", cli.ColorYellow, cli.ColorReset)
+			}
+			os.Exit(1)
+		}
+		fmt.Printf("%s✓ Post '%s' caption updated successfully via Meta API!%s\n", cli.ColorGreen, postID, cli.ColorReset)
 		fmt.Printf("  New Caption: %s\n", newCaption)
 	}
 }
