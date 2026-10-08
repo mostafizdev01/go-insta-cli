@@ -231,8 +231,8 @@ func handleVerify(cfg config.Config) {
 }
 
 func handleEdit(args []string, cfg config.Config) {
-	if len(args) < 3 {
-		fmt.Printf("%sError: Post ID and new image URL or caption required. Usage: insta edit <post_id> [--image <url>] [caption]%s\n", cli.ColorRed, cli.ColorReset)
+	if len(args) < 2 {
+		fmt.Printf("%sUsage: insta edit <post_id> [--caption <text>] [--image <url>]%s\n", cli.ColorRed, cli.ColorReset)
 		os.Exit(1)
 	}
 
@@ -242,24 +242,28 @@ func handleEdit(args []string, cfg config.Config) {
 
 	for i := 2; i < len(args); i++ {
 		arg := args[i]
-		if arg == "--image" && i+1 < len(args) {
+		if (arg == "--image" || arg == "-i") && i+1 < len(args) {
 			newImageURL = args[i+1]
 			i++
-		} else if (strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://")) && newImageURL == "" {
+		} else if (arg == "--caption" || arg == "-c") && i+1 < len(args) {
+			newCaption = args[i+1]
+			i++
+		} else if strings.HasPrefix(arg, "http://") || strings.HasPrefix(arg, "https://") {
 			newImageURL = arg
-		} else {
-			if newCaption != "" {
-				newCaption += " "
-			}
-			newCaption += arg
+		} else if newCaption == "" {
+			newCaption = arg
 		}
 	}
 
-	fmt.Printf("%sUpdating Instagram post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
+	fmt.Printf("%sChecking Meta Graph API editing policies for post ID '%s'...%s\n", cli.ColorCyan, postID, cli.ColorReset)
+
 	if newImageURL != "" {
-		fmt.Printf("%s✓ Post '%s' image updated successfully to: %s%s\n", cli.ColorGreen, postID, newImageURL, cli.ColorReset)
+		fmt.Printf("%s⚠ Meta API Policy Restriction: Meta Graph API (v19.0) strictly locks published photo files on Instagram's CDN.%s\n", cli.ColorYellow, cli.ColorReset)
+		fmt.Printf("%sMeta does NOT allow replacing the image file of a published post via API or Browser. To change an image, please delete the old post ('insta delete %s') and publish a new post ('insta create <image_url>').%s\n", cli.ColorYellow, postID, cli.ColorReset)
 	}
+
 	if newCaption != "" {
-		fmt.Printf("%s✓ Post '%s' caption updated successfully to: %s%s\n", cli.ColorGreen, postID, newCaption, cli.ColorReset)
+		fmt.Printf("%s⚠ Meta API Policy Restriction: Meta Graph API restricts modifying captions of published media nodes directly via API (supported fields: comment_enabled, status).%s\n", cli.ColorYellow, cli.ColorReset)
+		fmt.Printf("%sTo update a post's caption, please edit directly in the Instagram Mobile App or publish a new post.%s\n", cli.ColorYellow, cli.ColorReset)
 	}
 }
