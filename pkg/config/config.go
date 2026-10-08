@@ -18,14 +18,9 @@ type Config struct {
 	LastLogin   string `json:"last_login"`
 }
 
-// GetConfigFilePath returns the absolute path to ~/.config/insta-cli/config.json.
+// GetConfigFilePath returns the absolute path to F:\Riseup-asia\config.json.
 func GetConfigFilePath() (string, error) {
-	homeDir, err := os.UserHomeDir()
-	if err != nil {
-		return "", fmt.Errorf("unable to determine user home directory: %w", err)
-	}
-
-	configDir := filepath.Join(homeDir, ".config", "insta-cli")
+	configDir := `F:\Riseup-asia`
 	if err := os.MkdirAll(configDir, 0705); err != nil {
 		return "", fmt.Errorf("unable to create config directory: %w", err)
 	}
@@ -33,13 +28,55 @@ func GetConfigFilePath() (string, error) {
 	return filepath.Join(configDir, "config.json"), nil
 }
 
-// LoadConfig reads configuration from Environment Variables or disk config.
+// loadDotEnv parses .env file key-value pairs if present.
+func loadDotEnv() map[string]string {
+	res := make(map[string]string)
+	paths := []string{
+		".env",
+		filepath.Join("F:", "Riseup-asia", ".env"),
+		filepath.Join("F:", "Riseup-asia", "go-insta-cli", ".env"),
+	}
+	for _, p := range paths {
+		data, err := os.ReadFile(p)
+		if err == nil {
+			lines := strings.Split(string(data), "\n")
+			for _, line := range lines {
+				line = strings.TrimSpace(line)
+				if strings.HasPrefix(line, "#") || !strings.Contains(line, "=") {
+					continue
+				}
+				parts := strings.SplitN(line, "=", 2)
+				if len(parts) == 2 {
+					k := strings.TrimSpace(parts[0])
+					v := strings.TrimSpace(parts[1])
+					v = strings.Trim(v, `"'`)
+					if k != "" && v != "" {
+						res[k] = v
+					}
+				}
+			}
+			if len(res) > 0 {
+				break
+			}
+		}
+	}
+	return res
+}
+
+// LoadConfig reads configuration from Environment Variables, .env file, or disk config.
 func LoadConfig() (Config, error) {
 	var cfg Config
 
-	// 1. Check environment variables first
+	// 1. Check environment variables & .env file
+	dotEnv := loadDotEnv()
 	envToken := strings.TrimSpace(os.Getenv("INSTAGRAM_ACCESS_TOKEN"))
+	if envToken == "" {
+		envToken = dotEnv["INSTAGRAM_ACCESS_TOKEN"]
+	}
 	envAccountID := strings.TrimSpace(os.Getenv("INSTAGRAM_ACCOUNT_ID"))
+	if envAccountID == "" {
+		envAccountID = dotEnv["INSTAGRAM_ACCOUNT_ID"]
+	}
 
 	if envToken != "" {
 		cfg.AccessToken = envToken
@@ -74,7 +111,7 @@ func LoadConfig() (Config, error) {
 	return cfg, nil
 }
 
-// SaveConfig writes configuration to disk with 0600 permissions.
+// SaveConfig writes configuration to disk with 0600 permissions and updates .env if present.
 func SaveConfig(cfg Config) error {
 	path, err := GetConfigFilePath()
 	if err != nil {
@@ -93,6 +130,19 @@ func SaveConfig(cfg Config) error {
 
 	if err := os.WriteFile(path, data, 0600); err != nil {
 		return fmt.Errorf("failed to write config file: %w", err)
+	}
+
+	// Also sync to .env file if it exists
+	dotEnvPaths := []string{
+		".env",
+		filepath.Join("F:", "Riseup-asia", ".env"),
+		filepath.Join("F:", "Riseup-asia", "go-insta-cli", ".env"),
+	}
+	envContent := fmt.Sprintf("# Meta Instagram Official Graph API Configuration\nINSTAGRAM_ACCESS_TOKEN=%s\nINSTAGRAM_ACCOUNT_ID=%s\n", cfg.AccessToken, cfg.AccountID)
+	for _, envPath := range dotEnvPaths {
+		if _, err := os.Stat(envPath); err == nil {
+			_ = os.WriteFile(envPath, []byte(envContent), 0600)
+		}
 	}
 
 	return nil

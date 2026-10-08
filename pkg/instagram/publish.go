@@ -31,9 +31,12 @@ func (c *Client) PublishMedia(imageURL, caption string) (string, error) {
 		target = c.AccountID
 	}
 
+	domains := getTargetDomains(c.AccessToken)
+	domain := domains[0]
+
 	// 1. Create Media Container
-	createURL := fmt.Sprintf("https://graph.instagram.com/v19.0/%s/media?image_url=%s&caption=%s&access_token=%s",
-		target, url.QueryEscape(imageURL), url.QueryEscape(caption), url.QueryEscape(c.AccessToken))
+	createURL := fmt.Sprintf("https://%s/v19.0/%s/media?image_url=%s&caption=%s&access_token=%s",
+		domain, target, url.QueryEscape(imageURL), url.QueryEscape(caption), url.QueryEscape(c.AccessToken))
 
 	resp, err := c.HTTPClient.Post(createURL, "application/json", nil)
 	if err != nil {
@@ -58,8 +61,8 @@ func (c *Client) PublishMedia(imageURL, caption string) (string, error) {
 	}
 
 	// 2. Publish Media Container
-	publishURL := fmt.Sprintf("https://graph.instagram.com/v19.0/%s/media_publish?creation_id=%s&access_token=%s",
-		target, containerResp.ID, url.QueryEscape(c.AccessToken))
+	publishURL := fmt.Sprintf("https://%s/v19.0/%s/media_publish?creation_id=%s&access_token=%s",
+		domain, target, containerResp.ID, url.QueryEscape(c.AccessToken))
 
 	pubResp, err := c.HTTPClient.Post(publishURL, "application/json", nil)
 	if err != nil {

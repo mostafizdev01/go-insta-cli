@@ -73,51 +73,57 @@ func (c *Client) FetchUserPosts(limit int) ([]posts.Post, error) {
 		return nil, fmt.Errorf("INSTAGRAM_ACCESS_TOKEN is missing. Please configure your Meta Graph API Access Token")
 	}
 
-	target := "me"
-	if c.AccountID != "" {
-		target = c.AccountID
+	targets := []string{"me"}
+	if c.AccountID != "" && c.AccountID != "me" {
+		targets = []string{c.AccountID, "me"}
 	}
 
 	domains := getTargetDomains(c.AccessToken)
 	var lastErr error
 
-	for _, domain := range domains {
-		apiURL := fmt.Sprintf("https://%s/v19.0/%s/media?fields=id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count&access_token=%s",
-			domain, target, url.QueryEscape(c.AccessToken))
+	for _, target := range targets {
+		for _, domain := range domains {
+			apiURL := fmt.Sprintf("https://%s/v19.0/%s/media?fields=id,caption,media_type,media_url,permalink,timestamp,like_count,comments_count&access_token=%s",
+				domain, target, url.QueryEscape(c.AccessToken))
 
-		resp, err := c.HTTPClient.Get(apiURL)
-		if err != nil {
-			lastErr = fmt.Errorf("network error reaching %s: %w", domain, err)
-			continue
-		}
+			resp, err := c.HTTPClient.Get(apiURL)
+			if err != nil {
+				lastErr = fmt.Errorf("network error reaching %s: %w", domain, err)
+				continue
+			}
 
-		var graphResp GraphAPIMediaResponse
-		if err := json.NewDecoder(resp.Body).Decode(&graphResp); err == nil {
-			resp.Body.Close()
-			if graphResp.Error == nil {
-				var result []posts.Post
-				for i, item := range graphResp.Data {
-					if limit > 0 && i >= limit {
-						break
+			var graphResp GraphAPIMediaResponse
+			if err := json.NewDecoder(resp.Body).Decode(&graphResp); err == nil {
+				resp.Body.Close()
+				if graphResp.Error == nil {
+					var result []posts.Post
+					for i, item := range graphResp.Data {
+						if limit > 0 && i >= limit {
+							break
+						}
+						result = append(result, posts.Post{
+							ID:           item.ID,
+							Caption:      item.Caption,
+							Timestamp:    item.Timestamp,
+							LikeCount:    item.LikeCount,
+							CommentCount: item.CommentsCount,
+							MediaType:    item.MediaType,
+							MediaURL:     item.MediaURL,
+						})
 					}
-					result = append(result, posts.Post{
-						ID:           item.ID,
-						Caption:      item.Caption,
-						Timestamp:    item.Timestamp,
-						LikeCount:    item.LikeCount,
-						CommentCount: item.CommentsCount,
-						MediaType:    item.MediaType,
-						MediaURL:     item.MediaURL,
-					})
+					return result, nil
 				}
-				return result, nil
+				if graphResp.Error != nil {
+					lastErr = fmt.Errorf("Meta API Error (%d): %s", graphResp.Error.Code, graphResp.Error.Message)
+				}
+			} else {
+				resp.Body.Close()
 			}
-			if graphResp.Error != nil {
-				lastErr = fmt.Errorf("Meta API Error (%d): %s", graphResp.Error.Code, graphResp.Error.Message)
-			}
-		} else {
-			resp.Body.Close()
 		}
+	}
+
+	if lastErr != nil && strings.Contains(lastErr.Error(), "nonexisting field (media)") {
+		return nil, fmt.Errorf("Meta API Error (100): Account ID '%s' is a Meta App ID or Page ID without a connected Instagram Business Account. To view posts, please provide your Instagram Business Account ID (e.g. 178414...)", c.AccountID)
 	}
 
 	if lastErr != nil {
