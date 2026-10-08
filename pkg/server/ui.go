@@ -99,6 +99,27 @@ const indexHTMLHeader = `<!DOCTYPE html>
         button.btn-danger { background-color: var(--accent-red); color: white; }
         button.btn-danger:disabled { opacity: 0.5; cursor: not-allowed; }
         button.btn-primary { background-color: var(--accent-blue); color: white; }
+        button.btn-success { background-color: var(--accent-green); color: white; }
+
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 1000;
+        }
+        .modal-overlay.active { display: flex; }
+        .modal-card {
+            background-color: var(--card-bg); border: 1px solid var(--card-border);
+            border-radius: 12px; width: 100%; max-width: 480px; padding: 1.5rem;
+            display: flex; flex-direction: column; gap: 1rem; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.5);
+        }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; font-weight: 700; font-size: 1.1rem; border-bottom: 1px solid var(--card-border); padding-bottom: 0.75rem; }
+        .form-group { display: flex; flex-direction: column; gap: 0.4rem; }
+        .form-group label { font-size: 0.85rem; color: var(--text-secondary); font-weight: 600; }
+        .form-group input, .form-group textarea {
+            background: var(--bg-color); border: 1px solid var(--card-border);
+            color: var(--text-primary); padding: 0.65rem 0.8rem; border-radius: 6px;
+            font-size: 0.9rem; font-family: inherit;
+        }
+        .modal-footer { display: flex; justify-content: flex-end; gap: 0.5rem; margin-top: 0.5rem; }
 
         .post-grid {
             display: grid;
@@ -189,6 +210,7 @@ const indexHTMLHeader = `<!DOCTYPE html>
                 <div>Selected: <strong id="selectedCount">0</strong></div>
             </div>
             <div class="actions">
+                <button class="btn-success" onclick="openCreateModal()">+ Create Post</button>
                 <button onclick="selectAll(true)">Select All</button>
                 <button onclick="selectAll(false)">Deselect</button>
                 <button class="btn-primary" onclick="loadPosts(true)">Refresh</button>
@@ -197,6 +219,28 @@ const indexHTMLHeader = `<!DOCTYPE html>
         </div>
 
         <div class="post-grid" id="postGrid">
+        </div>
+    </div>
+
+    <!-- Create Post Modal -->
+    <div class="modal-overlay" id="createModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <span>Create New Instagram Post</span>
+                <button style="background:none; border:none; font-size:1.2rem; cursor:pointer;" onclick="closeCreateModal()">✕</button>
+            </div>
+            <div class="form-group">
+                <label>Image URL (Square 1:1 or Portrait 4:5):</label>
+                <input type="text" id="createImageURL" placeholder="https://picsum.photos/600/600">
+            </div>
+            <div class="form-group">
+                <label>Caption:</label>
+                <textarea id="createCaption" rows="4" placeholder="Write your post caption here..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeCreateModal()">Cancel</button>
+                <button class="btn-success" id="publishBtn" onclick="submitCreatePost()">Publish Post</button>
+            </div>
         </div>
     </div>
 

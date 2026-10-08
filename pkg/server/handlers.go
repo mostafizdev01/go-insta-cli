@@ -168,3 +168,55 @@ func (s *Server) handleAPIEdit(w http.ResponseWriter, r *http.Request) {
 		"message": fmt.Sprintf("Post '%s' caption updated successfully", postID),
 	})
 }
+
+func (s *Server) handleAPICreate(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	if r.Method != http.MethodPost {
+		w.WriteHeader(http.StatusMethodNotAllowed)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Method not allowed. Use POST"})
+		return
+	}
+
+	var reqBody struct {
+		ImageURL string `json:"image_url"`
+		Caption  string `json:"caption"`
+	}
+
+	if r.Body != nil {
+		json.NewDecoder(r.Body).Decode(&reqBody)
+	}
+
+	imageURL := strings.TrimSpace(reqBody.ImageURL)
+	caption := strings.TrimSpace(reqBody.Caption)
+
+	if imageURL == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Missing image_url"})
+		return
+	}
+
+	cfg, _ := config.LoadConfig()
+	if !cfg.IsLoggedIn || strings.TrimSpace(cfg.AccessToken) == "" {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]string{"error": "Unauthorized. Access Token missing"})
+		return
+	}
+
+	client := instagram.NewClient(cfg.AccessToken, cfg.AccountID)
+	postID, err := client.PublishMedia(imageURL, caption)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"post_id": postID,
+		"message": "Post published successfully to Instagram!",
+	})
+}

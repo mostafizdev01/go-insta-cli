@@ -197,6 +197,52 @@ const indexJSFooter = `    <script>
             deleteNext();
         }
 
+        function openCreateModal() {
+            document.getElementById('createImageURL').value = 'https://picsum.photos/600/600';
+            document.getElementById('createCaption').value = '';
+            document.getElementById('createModal').classList.add('active');
+        }
+
+        function closeCreateModal() {
+            document.getElementById('createModal').classList.remove('active');
+        }
+
+        function submitCreatePost() {
+            var imgURL = document.getElementById('createImageURL').value.trim();
+            var caption = document.getElementById('createCaption').value.trim();
+            if (!imgURL) {
+                showToast('Image URL is required', 'error');
+                return;
+            }
+
+            var btn = document.getElementById('publishBtn');
+            btn.disabled = true;
+            btn.innerText = 'Publishing...';
+
+            fetch('/api/create', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image_url: imgURL, caption: caption })
+            })
+            .then(function(res) { return res.json(); })
+            .then(function(data) {
+                if (data.success) {
+                    showToast('Post published successfully to Instagram!', 'success');
+                    closeCreateModal();
+                    loadPosts(true);
+                } else {
+                    showToast('Failed to publish post: ' + (data.error || 'API Error'), 'error');
+                }
+            })
+            .catch(function(e) {
+                showToast('Network error publishing post', 'error');
+            })
+            .finally(function() {
+                btn.disabled = false;
+                btn.innerText = 'Publish Post';
+            });
+        }
+
         function showToast(msg, type) {
             var container = document.getElementById('toastContainer');
             var toast = document.createElement('div');
